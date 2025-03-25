@@ -1,0 +1,16 @@
+digraph {
+	Employees [label="{ Employees | EmpID | Name | DeptID | PositionID | HireDate }}" shape=record]
+	Departments [label="{ Departments | DeptID | DeptName }}" shape=record]
+	Positions [label="{ Positions | PositionID | Position_Name }}" shape=record]
+	Salaries [label="{ Salaries | SalaryID | EmpID | Amount | PayDate }}" shape=record]
+	Benefits [label="{ Benefits | BenefitID | EmpID | BenefitType | StartDate }}" shape=record]
+	Projects [label="{ Projects | ProjectID | EmpID | Name | Budget }}" shape=record]
+	Clients [label="{ Clients | ClientID | ProjectID | Name | DeptID }}" shape=record]
+	Departments -> Employees [label=DeptID]
+	Positions -> Employees [label=PositionID]
+	Salaries -> Employees [label=EmpID]
+	Benefits -> Employees [label=EmpID]
+	Projects -> Employees [label=EmpID]
+	Clients -> Projects [label=ProjectID]
+	Clients -> Departments [label=DeptID]
+}
