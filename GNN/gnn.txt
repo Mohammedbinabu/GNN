@@ -1,0 +1,653 @@
+!pip install torch torch_geometric transformers scikit-learn networkx nltk
+!pip install torch torchvision torchaudio torch-geometric networkx sqlite3-to-mysql scikit-learn nltk
+!pip install torch torch-geometric transformers sentence-transformers networkx
+!pip install networkx torch torchvision torchaudio torch-geometric sentence-transformers
+
+import sqlite3
+
+# Connect to SQLite database (or create it)
+conn = sqlite3.connect("example.db")
+cursor = conn.cursor()
+
+# Create tables
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS Customers (
+    customer_id INTEGER PRIMARY KEY,
+    name TEXT,
+    email TEXT
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS Orders (
+    order_id INTEGER PRIMARY KEY,
+    customer_id INTEGER,
+    order_date TEXT,
+    total_amount REAL,
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id)
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS Products (
+    product_id INTEGER PRIMARY KEY,
+    name TEXT,
+    price REAL
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS OrderDetails (
+    detail_id INTEGER PRIMARY KEY,
+    order_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER,
+    FOREIGN KEY (order_id) REFERENCES Orders(order_id),
+    FOREIGN KEY (product_id) REFERENCES Products(product_id)
+)
+""")
+
+# Commit changes and close connection
+conn.commit()
+conn.close()
+
+
+
+
+
+
+import sqlite3
+
+# Connect to SQLite database
+conn = sqlite3.connect("example.db")
+cursor = conn.cursor()
+
+# Insert data into Customers
+test_customers = [
+    (1, "Alice Johnson", "alice@gmail.com"),
+    (2, "Bob Smith", "bob@gmail.com"),
+    (3, "Charlie Brown", "charlie@gmail.com"),
+    (4, "David White", "david@gmail.com"),
+    (5, "Eve Black", "eve@gmail.com"),
+    (6, "Frank Green", "frank@gmail.com"),
+    (7, "Grace Hall", "grace@gmail.com"),
+    (8, "Hank Adams", "hank@gmail.com"),
+    (9, "Ivy Clark", "ivy@gmail.com"),
+    (10, "Jack Lewis", "jack@gmail.com"),
+    (11, "Karen Scott", "karen@gmail.com"),
+    (12, "Leo Martinez", "leo@gmail.com"),
+    (13, "Mona King", "mona@gmail.com"),
+    (14, "Nate Wright", "nate@gmail.com"),
+    (15, "Olivia Perez", "olivia@gmail.com")
+]
+cursor.executemany("INSERT INTO Customers (customer_id, name, email) VALUES (?, ?, ?)", test_customers)
+
+# Insert data into Products
+test_products = [
+    (1, "Laptop", 1200.50),
+    (2, "Smartphone", 800.75),
+    (3, "Headphones", 150.00),
+    (4, "Tablet", 500.00),
+    (5, "Smartwatch", 300.25),
+    (6, "Monitor", 250.00),
+    (7, "Keyboard", 80.99),
+    (8, "Mouse", 45.50),
+    (9, "Printer", 200.75),
+    (10, "Camera", 700.00),
+    (11, "Speakers", 175.99),
+    (12, "Router", 90.00),
+    (13, "External HDD", 120.00),
+    (14, "USB Flash Drive", 25.00),
+    (15, "Gaming Console", 400.00)
+]
+cursor.executemany("INSERT INTO Products (product_id, name, price) VALUES (?, ?, ?)", test_products)
+
+# Insert data into Orders
+test_orders = [
+    (1, 1, "2025-03-05", 1350.50),
+    (2, 2, "2025-03-06", 800.75),
+    (3, 3, "2025-03-07", 1200.50),
+    (4, 4, "2025-03-08", 600.00),
+    (5, 5, "2025-03-09", 750.25),
+    (6, 6, "2025-03-10", 300.00),
+    (7, 7, "2025-03-11", 450.99),
+    (8, 8, "2025-03-12", 120.50),
+    (9, 9, "2025-03-13", 1100.75),
+    (10, 10, "2025-03-14", 950.00),
+    (11, 11, "2025-03-15", 670.99),
+    (12, 12, "2025-03-16", 400.00),
+    (13, 13, "2025-03-17", 150.00),
+    (14, 14, "2025-03-18", 250.50),
+    (15, 15, "2025-03-19", 500.00)
+]
+cursor.executemany("INSERT INTO Orders (order_id, customer_id, order_date, total_amount) VALUES (?, ?, ?, ?)", test_orders)
+
+# Insert data into OrderDetails
+test_order_details = [
+    (1, 1, 1, 1),  # Alice buys 1 Laptop
+    (2, 1, 3, 2),  # Alice buys 1 Headphones
+    (3, 2, 2, 3),  # Bob buys 1 Smartphone
+    (4, 3, 1, 5),  # Charlie buys 1 Laptop
+    (5, 4, 4, 1),  # David buys 1 Tablet
+    (6, 5, 5, 7),  # Eve buys 1 Smartwatch
+    (7, 6, 6, 8),  # Frank buys 1 Monitor
+    (8, 7, 7, 6),  # Grace buys 1 Keyboard
+    (9, 8, 8, 3),  # Hank buys 1 Mouse
+    (10, 9, 9, 2), # Ivy buys 1 Printer
+    (11, 10, 10, 3),# Jack buys 1 Camera
+    (12, 11, 11, 4),# Karen buys 1 Speakers
+    (13, 12, 12, 2),# Leo buys 1 Router
+    (14, 13, 13, 7),# Mona buys 1 External HDD
+    (15, 14, 14, 2) # Nate buys 1 USB Flash Drive
+]
+cursor.executemany("INSERT INTO OrderDetails (detail_id, order_id, product_id, quantity) VALUES (?, ?, ?, ?)", test_order_details)
+
+# Commit changes and close connection
+conn.commit()
+conn.close()
+
+print("Sample data inserted successfully.")
+
+
+
+
+import sqlite3
+import torch
+import torch.nn.functional as F
+from torch_geometric.data import Data
+from torch_geometric.nn import GCNConv
+from sentence_transformers import SentenceTransformer
+import numpy as np
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, TensorDataset
+from functools import lru_cache
+
+# Detect device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+sentence_model = SentenceTransformer("all-MiniLM-L6-v2").to(device)
+
+# Caching function for embeddings
+@lru_cache(maxsize=500)
+def encode_text(text):
+    return sentence_model.encode(text, convert_to_tensor=True, show_progress_bar=False).to(device)
+
+# Retrieve schema dynamically
+def get_schema(db_path="example.db"):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    schema = {}
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = cursor.fetchall()
+    
+    for table in tables:
+        table_name = table[0]
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = [row[1] for row in cursor.fetchall()]
+        schema[table_name] = columns
+    
+    conn.close()
+    return schema
+
+schema = get_schema()
+
+table_embeddings = {
+    table: encode_text(table + " " + " ".join(schema[table]) + " " + " ".join([f"{col}:{table}" for col in schema[table]])) 
+    for table in schema.keys()
+}
+
+# Construct edges dynamically with foreign keys & weak connections
+def get_edges(db_path="example.db"):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    table_indices = {table: idx for idx, table in enumerate(schema.keys())}
+    edges = []
+    edge_weights = []
+    
+    for table in schema.keys():
+        cursor.execute(f"PRAGMA foreign_key_list({table})")
+        fks = cursor.fetchall()
+        for fk in fks:
+            ref_table = fk[2]
+            if ref_table in table_indices:
+                edges.append((table_indices[table], table_indices[ref_table]))  # FK connection
+                edges.append((table_indices[ref_table], table_indices[table]))
+                edge_weights.extend([2.0, 2.0])  # Higher weight for strong relationships
+    
+    conn.close()
+    return edges, edge_weights
+
+edges, edge_weights = get_edges()
+edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous().to(device)
+edge_weights = torch.tensor(edge_weights, dtype=torch.float).to(device)
+
+table_names = list(schema.keys())
+table_features = torch.stack([table_embeddings[table] for table in table_names]).to(device)
+
+class TableEncoder(torch.nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(TableEncoder, self).__init__()
+        self.conv1 = GCNConv(input_dim, hidden_dim)
+        self.conv2 = GCNConv(hidden_dim, output_dim)
+        
+    def forward(self, x, edge_index, edge_weight=None):
+        x = self.conv1(x, edge_index, edge_weight)
+        x = F.relu(x)
+        x = F.dropout(x, p=0.2, training=self.training)
+        x = self.conv2(x, edge_index, edge_weight)
+        return x
+
+class QueryTableMatcher(torch.nn.Module):
+    def __init__(self, query_dim, table_dim, hidden_dim, output_dim):
+        super(QueryTableMatcher, self).__init__()
+        self.query_encoder = torch.nn.Sequential(
+            torch.nn.Linear(query_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(hidden_dim, hidden_dim)
+        )
+        self.table_encoder = TableEncoder(table_dim, hidden_dim, hidden_dim)
+        self.attention = torch.nn.Linear(hidden_dim, hidden_dim)
+        self.output_layer = torch.nn.Linear(hidden_dim, output_dim)
+        
+    def forward(self, query_emb, table_feats, edge_index, edge_weight=None):
+        query_hidden = self.query_encoder(query_emb)
+        table_hidden = self.table_encoder(table_feats, edge_index, edge_weight)
+        
+        query_attn = self.attention(query_hidden).unsqueeze(1)
+        table_hidden_t = table_hidden.unsqueeze(0).repeat(query_emb.size(0), 1, 1)
+        
+        scores = torch.bmm(query_attn, table_hidden_t.transpose(1, 2)).squeeze(1)
+        return torch.sigmoid(scores)
+
+query_table_pairs = [
+    ("Retrieve all customer emails", ["Customers"]),
+    ("List all product names and prices", ["Products"]),
+    ("Find total amount spent by each customer", ["Customers", "Orders"]),
+    ("Show all orders placed by a specific customer", ["Orders", "Customers"]),
+    ("Get details of all products in an order", ["OrderDetails", "Products"]),
+    ("Find customers who placed orders in the last 30 days", ["Customers", "Orders"]),
+    ("Get the names and emails of all customers", ["Customers"]),
+    ("List all products purchased by customers", ["Products", "Orders", "OrderDetails"]),
+    ("Find total spending per customer", ["Customers", "Orders"]),
+    ("Retrieve all customer names", ["Customers"]),
+    ("Find the detials of products with total amount",["Products","OrderDetails","Orders"]),
+    ("Get all customer emails", ["Customers"]),
+    ("List all product names", ["Products"]),
+    ("Show all product prices", ["Products"]),
+    ("Find all order IDs", ["Orders"]),
+    ("Retrieve all customer names", ["Customers"]),
+    ("Get all customer emails", ["Customers"]),
+    ("List all product names", ["Products"]),
+    ("Show all product prices", ["Products"]),
+    ("Find all order IDs", ["Orders"]),
+    ("Get all customers with their email addresses", ["Customers"]),
+    ("Retrieve all orders along with their total amount", ["Orders"]),
+    ("List all products along with their IDs", ["Products"]),
+    ("Get all customers with their email addresses", ["Customers"]),
+    ("Retrieve all orders along with their total amount", ["Orders"]),
+    ("List all products along with their IDs", ["Products"]),
+    ("Get the most ordered products", ["Products", "OrderDetails"]),
+    ("List customers who have not placed any orders", ["Customers"]),
+    ("Show details of products ordered by a customer", ["OrderDetails", "Products", "Customers"]),
+    ("Retrieve the top 5 customers with the highest spending", ["Customers", "Orders"]),
+    ("Show the number of products in an order", ["OrderDetails"]),
+    ("Find all orders with a total amount greater than $100", ["Orders"]),
+    ("List products ordered more than once", ["Products", "OrderDetails"]),
+    ("Show customers who ordered more than 3 products", ["Customers", "Orders", "OrderDetails"]),
+    ("Get the latest 10 orders along with customer names", ["Orders", "Customers"]),
+    ("Find the total amount spent by each customer", ["Customers", "Orders"]),
+    ("Get the total revenue generated", ["Orders"]),
+    ("Find the most expensive product", ["Products"]),
+    ("Get the least expensive product", ["Products"]),
+    ("Find the average price of all products", ["Products"]),
+    ("Get the total quantity of each product sold", ["OrderDetails", "Products"]),
+    ("Find the customer who has spent the most money", ["Customers", "Orders"]),
+    ("Find the highest total order amount", ["Orders"]),
+    ("Get the total number of orders placed in the last month", ["Orders"]),
+    ("Retrieve the most frequently ordered product", ["OrderDetails", "Products"]),
+    ("Find the average number of products per order", ["Orders", "OrderDetails"]),
+    ("Calculate the total revenue per product", ["Orders", "OrderDetails", "Products"]),
+    ("Find the most expensive product", ["Products"]),
+    ("Find all customers whose name starts with 'J'", ["Customers"]),
+    ("Retrieve all products that cost more than $50", ["Products"]),
+    ("Get all orders where the total amount is greater than $100", ["Orders"]),
+    ("Find all orders where a product quantity is greater than 5", ["OrderDetails"]),
+    ("List all customers who have placed more than 3 orders", ["Customers", "Orders"]),
+    ("Get all customers who registered before 2023", ["Customers"]),
+    ("Find all orders containing at least one expensive product", ["Orders", "OrderDetails", "Products"]),
+    ("Retrieve all customers who placed an order in January", ["Customers", "Orders"]),
+    ("Get all order details including quantities", ["OrderDetails"]),
+    ("Find the total sales for each product", ["Products", "OrderDetails"]),
+    ("List all orders and their total amounts", ["Orders"]),
+    ("Show customer details along with their order history", ["Customers", "Orders"]),
+    ("Get the total number of orders placed by each customer", ["Customers", "Orders"]),
+    ("Find the most recent orders placed by customers", ["Orders", "Customers"]),
+    ("Retrieve the quantity of each product ordered", ["OrderDetails"]),
+    ("List all products ordered by a specific customer", ["Products", "OrderDetails", "Customers"]),
+    ("Show the total number of orders placed each day", ["Orders"]),
+    ("Find all customers who ordered more than 5 products", ["Customers", "OrderDetails", "Orders"]),
+    ("List the products purchased by a customer in December", ["Products", "Orders", "OrderDetails"]),
+    ("Show the most ordered products last month", ["Products", "OrderDetails"]),
+    ("Find customers who placed orders in the last 7 days", ["Customers", "Orders"]),
+    ("Get the total amount spent by a specific customer", ["Customers", "Orders"]),
+    ("Find the average amount spent per customer", ["Customers", "Orders"]),
+    ("Retrieve all customers from New York", ["Customers"]),
+    ("List all products sold in 2024", ["Products", "Orders", "OrderDetails"]),
+    ("Get the total sales for each product by month", ["Products", "OrderDetails"]),
+    ("Show customers who spent more than $200", ["Customers", "Orders"]),
+    ("Find products ordered more than 10 times", ["Products", "OrderDetails"]),
+    ("Get the details of orders placed by a customer", ["Orders", "Customers"]),
+    ("Retrieve products with a price greater than $50", ["Products"]),
+    ("List the customers who have placed more than 10 orders", ["Customers", "Orders"]),
+    ("Find all customers who ordered a specific product", ["Customers", "OrderDetails", "Products"]),
+    ("Show the most popular products last year", ["Products", "OrderDetails"]),
+    ("Retrieve all orders placed by a specific customer in 2024", ["Orders", "Customers"]),
+    ("Get the total amount spent on each order", ["Orders", "OrderDetails"]),
+    ("Retrieve the number of newsletter subscriptions", []),
+    ("Find the percentage of customers who use discount codes", []),
+    ("Show the most successful promotional email campaign", []),
+    ("Get the breakdown of sales by country", []),
+    ("Find the most popular device used for online purchases", []),
+    ("Retrieve data on customer satisfaction survey results", []),
+    ("Find the number of visitors on the website right now", []),
+    ("Retrieve data on customer feedback sentiment analysis", []),
+    ("Get a summary of the company's social media growth", []),
+    ("Analyze the correlation between ads and sales", []),
+    ("Find the percentage of users using dark mode on the app", []),
+    ("Retrieve the top-selling products on Black Friday", []),
+    ("Find the average session duration of mobile vs. desktop users", []),
+    ("Analyze the impact of discounts on sales growth", []),
+    ("Get the number of users who signed up via referral links", []),
+    ("Find the peak shopping hours for customers", []),
+    ("Show the effect of weather on sales trends", []),
+    ("Retrieve the highest rated products based on customer reviews", []),
+    ("Find the number of refunds issued last month", []),
+    ("Show the average customer rating per product category", []),
+    ("Retrieve data on customer loyalty program participation", []),
+    ("Find customers with orders over $500", ["Customers", "Orders"]),
+    ("List all product names and quantities ordered", ["Products", "OrderDetails"]),
+    ("Show customers who have placed at least 3 orders", ["Customers", "Orders"]),
+    ("Get the average total amount per order", ["Orders"]),
+    ("Find customers who ordered the most expensive products", ["Customers", "Orders", "Products"]),
+    ("Show the order details of a specific order", ["Orders", "OrderDetails"]),
+    ("Get the most frequent product in all orders", ["Products", "OrderDetails"]),
+    ("List customers who bought products in the last 2 weeks", ["Customers", "Orders", "OrderDetails"]),
+    ("Retrieve customers with a specific order date", ["Customers", "Orders"]),
+    ("Get the most popular product categories", ["Products"]),
+    ("Find products that have been ordered more than 20 times", ["Products", "OrderDetails"]),
+    ("List all orders placed by a customer in February", ["Orders", "Customers"]),
+    ("Retrieve all orders with no products", ["Orders", "OrderDetails"]),
+    ("Find customers who ordered a specific product in 2024", ["Customers", "Orders", "Products"]),
+    ("Show the total number of orders per month", ["Orders"]),
+    ("Get all products ordered by a customer in the last year", ["Products", "Orders", "OrderDetails"]),
+    ("Find all orders from customers in California", ["Orders", "Customers"]),
+    ("List the total number of orders placed per customer", ["Customers", "Orders"]),
+    ("Retrieve products that have never been ordered", ["Products", "OrderDetails"]),
+    ("Get the total quantity of each product ordered", ["Products", "OrderDetails"]),
+    ("Find the orders placed in the last quarter", ["Orders"]),
+    ("Show all customers who ordered more than 2 products", ["Customers", "OrderDetails"]),
+    ("Get the top 10 customers with the highest total amount spent", ["Customers", "Orders"]),
+    ("Find all products ordered in the last 6 months", ["Products", "OrderDetails"]),
+    ("List customers who spent more than $300 on a single order", ["Customers", "Orders"]),
+    ("Retrieve orders with a discount greater than 20%", ["Orders"]),
+    ("Find products that have been ordered in the last 30 days", ["Products", "OrderDetails"]),
+    ("Show customers who placed orders with total amounts greater than $100", ["Customers", "Orders"]),
+    ("Get the number of orders placed in the last week", ["Orders"]),
+    ("List all products with quantities ordered", ["Products", "OrderDetails"]),
+    ("Retrieve products ordered in the first quarter", ["Products", "OrderDetails"]),
+    ("Find customers who have ordered every product", ["Customers", "OrderDetails", "Products"]),
+    ("Show the top 3 most frequent customers", ["Customers", "Orders"]),
+    ("List orders placed by customers in a specific city", ["Orders", "Customers"]),
+    ("Retrieve all products sold in March", ["Products", "OrderDetails"]),
+    ("Find customers who have spent more than $1000 in total", ["Customers", "Orders"]),
+    ("Get the list of customers who ordered a specific product", ["Customers", "Products", "OrderDetails"]),
+    ("Find the average total sales per month", ["Orders"]),
+    ("List customers who ordered products last week", ["Customers", "Orders", "OrderDetails"]),
+    ("Get the total sales of each product in the last year", ["Products", "OrderDetails"]),
+    ("Show all orders from customers in Florida", ["Orders", "Customers"]),
+    ("Retrieve the latest 5 product orders", ["Products", "OrderDetails"]),
+    ("Find customers who ordered the least expensive products", ["Customers", "OrderDetails", "Products"]),
+    ("Show all orders and their shipping costs", ["Orders"]),
+    ("Get the most common product in all orders", ["Products", "OrderDetails"]),
+    ("Find the average quantity of products ordered", ["OrderDetails"]),
+    ("List customers who placed an order in the first half of the year", ["Customers", "Orders"]),
+    ("Retrieve the total amount spent by each customer in 2024", ["Customers", "Orders"]),
+    ("Find customers who placed more than 5 orders in a month", ["Customers", "Orders"]),
+    ("List all products ordered by a customer in the past year", ["Products", "OrderDetails", "Orders"]),
+    ("Show the total number of orders by product", ["Products", "OrderDetails"]),
+    ("Retrieve all customers who ordered in the last quarter", ["Customers", "Orders"]),
+    ("Find customers who made more than 5 purchases in total", ["Customers", "Orders"]),
+    ("Show all products with a quantity greater than 3", ["Products", "OrderDetails"]),
+    ("Get the list of products ordered by customers in 2024", ["Products", "OrderDetails"]),
+    ("Find the orders placed by a specific customer in 2023", ["Orders", "Customers"]),
+    ("Show all customers with no orders", ["Customers"]),
+    ("Retrieve orders with product quantities less than 10", ["OrderDetails"]),
+    ("Get the list of products ordered in the past 7 days", ["Products", "OrderDetails"]),
+    ("get details of employee",[]),
+    ("find the order with amount $20 and its quantity",["Orders","OrderDetails"]),
+    ("Get the list of all employees", []),
+    ("Find the salary details of all staff members", []),
+    ("Retrieve the attendance records of employees", []),
+    ("Show the departments and their respective managers", []),
+    ("Get the list of suppliers for all products", []),
+    ("Find the total revenue generated from international sales", []),
+    ("Retrieve all transactions from the payment gateway", []),
+    ("List all refund requests submitted by customers", []),
+    ("Show the shipping status of all orders", []),
+    ("Find the warehouse locations for all products", []),
+    ("Retrieve all customer support tickets", []),
+    ("Get the list of vendors supplying raw materials", []),
+    ("Find the list of active discount coupons", []),
+    ("Retrieve customer reviews and ratings for each product", []),
+    ("Show the list of employees who processed orders", []),
+    ("Find the most searched keywords on the website", []),
+    ("Retrieve the website traffic analytics for the last month", []),
+    ("List all social media campaigns and their performance", []),
+    ("Show all the marketing expenses by month", []),
+    ("Find the number of visitors who abandoned their cart", []),
+    ("Retrieve the details of subscription-based customers", []),
+    ("Get the list of affiliate partners and their earnings", []),
+    ("Show the most common reasons for order cancellations", []),
+    ("Find the number of new user signups per day", []),
+    ("Retrieve the website conversion rate for the last 6 months", []),
+    ("List the number of failed payment transactions", []),
+    ("Show the total number of customer support calls received", []),
+    ("Find all registered businesses using our platform", []),
+    ("Retrieve the number of active users in the last 30 days", []),
+    ("Get the details of partnership agreements", []),
+    ("Find the list of logistics companies handling deliveries", []),
+    ("Retrieve all warranty claims submitted by customers", []),
+    ("Show the details of tax payments made by the company", []),
+    ("List all external integrations used by the platform", []),
+    ("Find the total number of software licenses owned", []),
+    ("Retrieve the list of audit logs for security purposes", []),
+    ("Get the feedback received from employees", []),
+    ("Find the training sessions completed by staff members", []),
+    ("Show the number of customer complaints by category", []),
+    ("Retrieve the power consumption details of the data center", []),
+    ("List all customers along with their most frequently ordered product", ["Customers", "Orders", "OrderDetails", "Products"]),
+    ("Find all customers who ordered a specific product in the last year", ["Customers", "Orders", "OrderDetails", "Products"]),
+    ("Get the number of times each customer has placed an order", ["Customers", "Orders"]),
+    ("Retrieve all customers who have only purchased one product", ["Customers", "Orders", "OrderDetails"]),
+    ("Find the total revenue generated by each product in the last year", ["Products", "OrderDetails", "Orders"]),
+    ("List all products that have never been purchased", ["Products", "OrderDetails"]),
+    ("Get a breakdown of revenue per product category", ["Products", "Orders", "OrderDetails"]),
+    ("Find the most popular product category based on sales", ["Products", "Orders", "OrderDetails"]),
+    ("Get all customers who have returned at least one product", ["Customers", "Orders", "OrderDetails"]),
+    ("Find the total number of API requests made last month", []),
+    ("Get the details of all legal disputes faced by the company", []),
+    ("Show the cybersecurity incidents reported last year", []),
+    ("Retrieve the environmental impact report for the company", []),
+    ("Find the breakdown of expenses on office supplies", []),
+    ("List all the real estate properties owned by the company", []),
+    ("Get the details of all board meetings held", []),
+    ("Retrieve the financial statements for the last quarter", []),
+    ("Show the breakdown of health insurance claims by employees", []),
+    ("Find the list of company-sponsored events", []),
+    ("Retrieve the details of customer demographic insights", []),
+    ("Get the total number of software bugs reported", []),
+    ("Show all patents filed by the company", []),
+    ("Retrieve the AI model performance metrics", []),
+    ("Find the top competitors in the market", []),
+    ("Show the stock market performance of the company", []),
+    ("Retrieve the mergers and acquisitions history", []),
+    ("Find all cybersecurity threats identified", []),
+    ("Get the climate impact report for the supply chain", []),
+    ("Retrieve all scientific research papers published", []),
+    ("Show the psychological study reports conducted by the company", []),
+    ("Find the energy consumption statistics of the office", []),
+    ("List all failed AI model predictions", []),
+    ("Retrieve the accuracy metrics of the latest AI model", []),
+    ("Get the machine learning training logs", []),
+    ("Find all experimental product ideas tested", []),
+    ("Retrieve all rejected product designs", []),
+    ("Show the feedback received for UI/UX improvements", []),
+    ("Find all mobile app crash reports", []),
+    ("Retrieve the legal contracts signed with external partners", []),
+    ("List all completed R&D projects", []),
+    ("Show all exported goods from the company", []),
+    ("Find the total carbon footprint of the company", []),
+    ("Retrieve the full details of international trade agreements", []),
+    ("Show the government regulations affecting business operations", []),
+    ("Find all historical economic data related to the company", []),
+    ("Retrieve the health records of employees", []),
+    ("Show the full list of parking permits issued to employees", []),
+    ("Find the number of fire drills conducted in the office", []),
+    ("Retrieve the monthly internet bandwidth consumption", []),
+    ("Show all product recalls made in the last 5 years", []),
+    ("Find all collaborations with academic institutions", []),
+    ("Retrieve all published white papers by the research team", []),
+    ("Show the AI ethics policies implemented in the company", []),
+    ("Find the number of IoT devices connected to the office network", []),
+    ("Retrieve all blockchain-based transactions recorded", []),
+    ("Show the cryptocurrency holdings of the company", []),
+    ("Find the genetic research projects funded by the company", []),
+    ("Retrieve all chatbot interactions with customers", []),
+    ("Get the full history of venture capital investments", []),
+    ("Show the details of satellite communication expenses", []),
+    ("Find all space exploration initiatives supported by the company", []),
+    ("Retrieve all robotics patents filed", []),
+    ("Show all nanotechnology-related innovations by the company", []),
+    ("Find the AI-generated art projects sponsored", []),
+    ("Retrieve the neuroscience research conducted", []),
+    ("Get the full details of smart city initiatives", []),
+    ("Find the latest advances in quantum computing by the company", []),
+    ("Retrieve the list of sustainable energy projects", []),
+    ("Show all research papers on bioengineering supported by the company",[]),
+    ("Find the number of autonomous vehicle tests conducted", []),
+    ("Retrieve all smart home technology patents filed", []),
+    ("Show the list of cyber warfare incidents reported", []),
+    ("Find the details of AI bias mitigation efforts", []),
+    ("Retrieve the full dataset of drone delivery operations", []),
+    ("Get all deep space mission projects undertaken", []),
+    ("Show all advancements in augmented reality by the company", []),
+    ("Find all exoplanet discovery reports funded by the company", []),
+    ("Retrieve the number of customers who own electric vehicles", []),
+    ("Show all deepfake detection algorithms implemented", []),
+    ("Find the global water conservation efforts sponsored by the company", []),
+    ("Retrieve the full details of mind-controlled technology research", []),
+    ("Show the total number of humanoid robots manufactured", []),
+    ("Find all research projects on brain-computer interfaces", []),
+    ("Retrieve the history of Mars colonization feasibility studies", []),
+    ("Show the AI-generated literature projects created by the company", []),
+    ("Find the latest developments in teleportation research", []),
+    ("Retrieve all customer emotion analysis reports", []),
+    ("Show the details of interstellar travel research", []),
+    ("Find the full history of AI-driven medical diagnosis", []),
+    ("Retrieve all biological engineering experiments conducted", []),
+    ("Show all smart agriculture projects funded by the company", []),
+    ("Find the number of active cryogenic preservation projects", []),
+    ("Retrieve the list of consciousness transfer experiments", []),
+    ("Show all AI-generated poetry publications", []),
+    ("Find the total number of space mining initiatives", []),
+    ("Retrieve all virtual reality therapy research studies", []),
+    ("Show the total number of AI-generated philosophy papers", []),
+    ("Find the number of AI-controlled autonomous submarines developed", []),
+    ("Retrieve the latest AI predictions for the stock market", []),
+    ("Show all machine learning models predicting human behavior", []),
+    ("Find the total number of time travel experiments attempted", []),
+    ("Retrieve all AI-based personalized dream analysis studies", []),
+    ("customer name along with the ordered quantity",["Customers","Orders","OrderDetails"])
+]
+
+X_queries, y_tables = [], []
+mlb = MultiLabelBinarizer(classes=table_names)
+mlb.fit([table_names])
+
+for query, tables in query_table_pairs:
+    X_queries.append(encode_text(query))
+    y_tables.append(mlb.transform([tables])[0])
+
+X_queries = torch.stack(X_queries).to(device)
+y_tables = torch.tensor(y_tables, dtype=torch.float).to(device)
+
+X_train, X_val, y_train, y_val = train_test_split(
+    X_queries, y_tables, test_size=0.3, random_state=42
+)
+
+train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=16, shuffle=True)
+
+hidden_dim = 128
+model = QueryTableMatcher(
+    query_dim=X_queries.shape[1],
+    table_dim=table_features.shape[1],
+    hidden_dim=hidden_dim,
+    output_dim=len(schema)
+).to(device)
+
+criterion = torch.nn.BCELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+
+for epoch in range(300):
+    model.train()
+    for batch_X, batch_y in train_loader:
+        optimizer.zero_grad()
+        outputs = model(batch_X, table_features, edge_index, edge_weights)
+        loss = criterion(outputs, batch_y)
+        loss.backward()
+        optimizer.step()
+
+def predict_tables_for_query(query, threshold=0.3):
+    query_embedding = encode_text(query).unsqueeze(0)
+    with torch.no_grad():
+        table_probs = model(query_embedding, table_features, edge_index, edge_weights)[0]
+    
+    relevant_indices = torch.where(table_probs >= threshold)[0]
+    if len(relevant_indices) == 0:
+        return []
+    
+    return [table_names[idx.item()] for idx in relevant_indices]
+
+
+
+
+# Testing
+test_queries = ["Find customers who placed orders in last 30 days", 
+                "Get all products that were never ordered",
+                "get the details of employees",
+                "Get the details of all legal disputes faced by the company",
+                "Show the cybersecurity incidents reported last year",
+                "List all customers along with their most frequently ordered product",
+                "Find all customers who ordered a specific product in the last year",
+                "Find the detials of products along with their total amount",
+                "get the detials of orders",
+                "get the detils of students",
+                "show the customer phone number",
+                "find the average amount of orders getting each month",
+                "show customers along with their products name and ordered quantity",
+                "customers along with quantity",
+                "fetch the values of product santoor who ordered more number of times with customer detials and what is the total value of the product",
+                "which customer has ordered most of the products",
+               "what are the last five orders",
+               "find the top five most selling products",
+               "insert new product with phone",
+               "delete a product with quantity abx",
+               "assign 70 rupees for product hair colour",
+               "what is customer id of indhu and how many products did she ordered",
+               "which customer has ordered avc last month"]
+for query in test_queries:
+    print(f"Query: '{query}', Tables: {predict_tables_for_query(query)}")
+
+
